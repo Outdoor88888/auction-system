@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="le4db-sample">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/servlet-api-3.1.jar!/" />
+      <root url="jar://$PROJECT_DIR$/jetty-all-9.4.22.v20191022-uber.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
