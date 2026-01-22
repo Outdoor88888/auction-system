@@ -48,7 +48,7 @@ public class BanListServlet extends HttpServlet {
                 ResultSet rs = ps.executeQuery();
                 while(rs.next()){
                     out.println("<tr>");
-                    out.println("<td><a href='userDetail?uid=" + rs.getInt("to_user_id") + "'>" + rs.getString("name") + "</a></td>");
+                    out.println("<td>" + rs.getString("name") + "</td>");
                     out.println("<td><a href='banList?unban=" + rs.getInt("to_user_id") + "'>Ban解除</a></td></tr>");
                 }
                 out.println("</table>");

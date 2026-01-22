@@ -5,6 +5,8 @@ import javax.servlet.http.*;
 
 public class AuctionHelper {
 
+    // printHeader, printLink, printFooter は変更なし
+
     public static void printHeader(PrintWriter out, HttpSession session, String currentPage) {
         out.println("<html><head>");
         out.println("<meta charset='UTF-8'>");
@@ -56,26 +58,39 @@ public class AuctionHelper {
         out.println("</body></html>");
     }
 
+    // ▼▼▼ トランザクション対応 ▼▼▼
     private static void checkAndCloseAuctions(Connection conn) {
         try {
-            String sql = "SELECT id FROM Item WHERE end_at <= NOW() AND is_bought = FALSE";
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ResultSet rs = ps.executeQuery();
-            while(rs.next()) {
-                int itemId = rs.getInt("id");
-                String sqlBid = "SELECT id FROM BidItem WHERE item_id = ? ORDER BY bid_price DESC LIMIT 1";
-                PreparedStatement psBid = conn.prepareStatement(sqlBid);
-                psBid.setInt(1, itemId);
-                ResultSet rsBid = psBid.executeQuery();
-                if (rsBid.next()) {
-                    int bidId = rsBid.getInt("id");
-                    PreparedStatement psUpdateBid = conn.prepareStatement("UPDATE BidItem SET is_success = TRUE WHERE id = ?");
-                    psUpdateBid.setInt(1, bidId);
-                    psUpdateBid.executeUpdate();
+            // 自動コミットをオフに設定
+            boolean originalAutoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
+
+            try {
+                String sql = "SELECT id FROM Item WHERE end_at <= NOW() AND is_bought = FALSE";
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery();
+                while(rs.next()) {
+                    int itemId = rs.getInt("id");
+                    String sqlBid = "SELECT id FROM BidItem WHERE item_id = ? ORDER BY bid_price DESC LIMIT 1";
+                    PreparedStatement psBid = conn.prepareStatement(sqlBid);
+                    psBid.setInt(1, itemId);
+                    ResultSet rsBid = psBid.executeQuery();
+                    if (rsBid.next()) {
+                        int bidId = rsBid.getInt("id");
+                        PreparedStatement psUpdateBid = conn.prepareStatement("UPDATE BidItem SET is_success = TRUE WHERE id = ?");
+                        psUpdateBid.setInt(1, bidId);
+                        psUpdateBid.executeUpdate();
+                    }
+                    PreparedStatement psUpdateItem = conn.prepareStatement("UPDATE Item SET is_bought = TRUE WHERE id = ?");
+                    psUpdateItem.setInt(1, itemId);
+                    psUpdateItem.executeUpdate();
                 }
-                PreparedStatement psUpdateItem = conn.prepareStatement("UPDATE Item SET is_bought = TRUE WHERE id = ?");
-                psUpdateItem.setInt(1, itemId);
-                psUpdateItem.executeUpdate();
+                conn.commit(); // 確定
+            } catch (Exception e) {
+                conn.rollback(); // エラー時は戻す
+                e.printStackTrace();
+            } finally {
+                conn.setAutoCommit(originalAutoCommit); // 設定を戻す
             }
         } catch (Exception e) { e.printStackTrace(); }
     }
@@ -131,7 +146,7 @@ public class AuctionHelper {
             }
             session.setAttribute("outbid_items", currentOutbidIds);
 
-            // 4. 落札 (Won) - 修正: 時間条件を追加して重複通知を防止
+            // 4. 落札 (Won)
             Set<Integer> wonItems = (Set<Integer>) session.getAttribute("won_items");
             if (wonItems == null) wonItems = new HashSet<>();
             String sqlWon = "SELECT i.id, i.name FROM Item i JOIN BidItem b ON i.id = b.item_id " +
@@ -146,7 +161,6 @@ public class AuctionHelper {
             while(rsWon.next()) {
                 int itemId = rsWon.getInt("id");
                 currentWonIds.add(itemId);
-                // 時間で絞っているのでセットチェックは必須ではないが、同じセッション内での重複防止のため残す
                 if (!wonItems.contains(itemId)) {
                     messages.add("おめでとうございます！商品「" + rsWon.getString("name") + "」を落札しました。");
                 }

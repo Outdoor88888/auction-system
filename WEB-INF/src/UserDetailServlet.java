@@ -16,6 +16,7 @@ public class UserDetailServlet extends HttpServlet {
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        // doGetは前回の修正のままでOK（変更なし）
         HttpSession session = request.getSession();
         int myUid = (Integer) session.getAttribute("u_id");
         int targetUid = Integer.parseInt(request.getParameter("uid"));
@@ -79,7 +80,6 @@ public class UserDetailServlet extends HttpServlet {
                 }
                 out.println("</ul>");
 
-                // 直近入札一覧 (リンク修正)
                 out.println("<h3>直近入札一覧</h3><ul>");
                 PreparedStatement psBid = conn.prepareStatement("SELECT DISTINCT ON (b.item_id) b.bid_price, i.name, i.id FROM BidItem b JOIN Item i ON b.item_id = i.id WHERE b.bidder_id = ? ORDER BY b.item_id, b.bid_price DESC LIMIT 10");
                 psBid.setInt(1, targetUid);
@@ -89,7 +89,6 @@ public class UserDetailServlet extends HttpServlet {
                 }
                 out.println("</ul>");
 
-                // 落札品一覧 (リンク修正)
                 out.println("<h3>過去の落札品一覧</h3><ul>");
                 String sqlWon = "SELECT i.name, i.id, b.bid_price FROM Item i JOIN BidItem b ON i.id = b.item_id WHERE b.bidder_id = ? AND i.is_bought = TRUE AND b.is_success = TRUE";
                 PreparedStatement psWon = conn.prepareStatement(sqlWon);
@@ -125,7 +124,7 @@ public class UserDetailServlet extends HttpServlet {
         } catch (Exception e) { e.printStackTrace(out); }
         AuctionHelper.printFooter(out);
     }
-    // doPost 省略
+
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         HttpSession session = request.getSession();
         int myUid = (Integer) session.getAttribute("u_id");
@@ -133,25 +132,40 @@ public class UserDetailServlet extends HttpServlet {
         try {
             Class.forName("org.postgresql.Driver");
             try (Connection conn = DriverManager.getConnection("jdbc:postgresql://" + _hostname + ":5432/" + _dbname, _username, _password)) {
-                if ("ban".equals(action)) {
-                    int targetUid = Integer.parseInt(request.getParameter("target_uid"));
-                    PreparedStatement psBan = conn.prepareStatement("INSERT INTO Ban (from_user_id, to_user_id) VALUES (?, ?)");
-                    psBan.setInt(1, myUid); psBan.setInt(2, targetUid);
-                    psBan.executeUpdate();
-                    conn.prepareStatement("DELETE FROM BidItem WHERE bidder_id = "+myUid+" AND item_id IN (SELECT id FROM Item WHERE seller_id = "+targetUid+")").executeUpdate();
-                    conn.prepareStatement("DELETE FROM BidItem WHERE bidder_id = "+targetUid+" AND item_id IN (SELECT id FROM Item WHERE seller_id = "+myUid+")").executeUpdate();
-                    response.sendRedirect("banList");
-                } else if ("delete_item".equals(action)) {
-                    int itemId = Integer.parseInt(request.getParameter("item_id"));
-                    PreparedStatement psCheck = conn.prepareStatement("SELECT * FROM Item WHERE id=? AND seller_id=? AND begin_at > NOW()");
-                    psCheck.setInt(1, itemId); psCheck.setInt(2, myUid);
-                    if (psCheck.executeQuery().next()) {
-                        conn.prepareStatement("DELETE FROM BidItem WHERE item_id=" + itemId).executeUpdate();
-                        conn.prepareStatement("DELETE FROM Likes WHERE item_id=" + itemId).executeUpdate();
-                        conn.prepareStatement("DELETE FROM Item WHERE id=" + itemId).executeUpdate();
+                // ▼▼▼ トランザクション処理の開始 ▼▼▼
+                conn.setAutoCommit(false);
+                try {
+                    if ("ban".equals(action)) {
+                        int targetUid = Integer.parseInt(request.getParameter("target_uid"));
+                        // 1. Banテーブルへ追加
+                        PreparedStatement psBan = conn.prepareStatement("INSERT INTO Ban (from_user_id, to_user_id) VALUES (?, ?)");
+                        psBan.setInt(1, myUid); psBan.setInt(2, targetUid);
+                        psBan.executeUpdate();
+                        // 2. 関連する入札の削除 (双方向)
+                        conn.prepareStatement("DELETE FROM BidItem WHERE bidder_id = "+myUid+" AND item_id IN (SELECT id FROM Item WHERE seller_id = "+targetUid+")").executeUpdate();
+                        conn.prepareStatement("DELETE FROM BidItem WHERE bidder_id = "+targetUid+" AND item_id IN (SELECT id FROM Item WHERE seller_id = "+myUid+")").executeUpdate();
+
+                        conn.commit(); // 成功したらコミット
+                        response.sendRedirect("banList");
+                    } else if ("delete_item".equals(action)) {
+                        int itemId = Integer.parseInt(request.getParameter("item_id"));
+                        PreparedStatement psCheck = conn.prepareStatement("SELECT * FROM Item WHERE id=? AND seller_id=? AND begin_at > NOW()");
+                        psCheck.setInt(1, itemId); psCheck.setInt(2, myUid);
+                        if (psCheck.executeQuery().next()) {
+                            // 1. 子テーブル削除
+                            conn.prepareStatement("DELETE FROM BidItem WHERE item_id=" + itemId).executeUpdate();
+                            conn.prepareStatement("DELETE FROM Likes WHERE item_id=" + itemId).executeUpdate();
+                            // 2. 親テーブル削除
+                            conn.prepareStatement("DELETE FROM Item WHERE id=" + itemId).executeUpdate();
+                        }
+                        conn.commit(); // 成功したらコミット
+                        response.sendRedirect("userDetail?uid=" + myUid);
                     }
-                    response.sendRedirect("userDetail?uid=" + myUid);
+                } catch (Exception e) {
+                    conn.rollback(); // エラー時は全てなかったことにする
+                    throw e;
                 }
+                // ▲▲▲ トランザクション処理の終了 ▲▲▲
             }
         } catch (Exception e) { e.printStackTrace(); }
     }
