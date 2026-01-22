@@ -17,9 +17,15 @@ public class SellServlet extends HttpServlet {
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("u_id") == null) {
+            response.sendRedirect("login");
+            return;
+        }
+        AuctionHelper.setNoCache(response);
+
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
-        HttpSession session = request.getSession();
 
         try {
             Class.forName("org.postgresql.Driver");
@@ -74,10 +80,14 @@ public class SellServlet extends HttpServlet {
     }
 
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        request.setCharacterEncoding("UTF-8");
-        HttpSession session = request.getSession();
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("u_id") == null) {
+            response.sendRedirect("login");
+            return;
+        }
         int uid = (Integer) session.getAttribute("u_id");
 
+        request.setCharacterEncoding("UTF-8");
         String name = request.getParameter("name");
         String desc = request.getParameter("description");
         String priceStr = request.getParameter("price");

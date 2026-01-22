@@ -16,8 +16,13 @@ public class ItemListServlet extends HttpServlet {
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        HttpSession session = request.getSession();
-        if (session.getAttribute("u_id") == null) { response.sendRedirect("login"); return; }
+        // セッションチェック & キャッシュ無効化
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("u_id") == null) {
+            response.sendRedirect("login");
+            return;
+        }
+        AuctionHelper.setNoCache(response);
         int myUid = (Integer) session.getAttribute("u_id");
 
         String search = request.getParameter("search");
@@ -51,7 +56,6 @@ public class ItemListServlet extends HttpServlet {
                 out.println("<button type='submit'>表示</button>");
                 out.println("</form>");
 
-                // 複雑なSQL構築 (副問合せ、集約、結合)
                 StringBuilder sql = new StringBuilder();
                 sql.append("SELECT i.*, u.name as seller_name, ");
                 sql.append("(SELECT MAX(bid_price) FROM BidItem WHERE item_id = i.id) as max_bid, "); // 最高額

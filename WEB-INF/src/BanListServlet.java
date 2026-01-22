@@ -16,7 +16,12 @@ public class BanListServlet extends HttpServlet {
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        HttpSession session = request.getSession();
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("u_id") == null) {
+            response.sendRedirect("login");
+            return;
+        }
+        AuctionHelper.setNoCache(response);
         int myUid = (Integer) session.getAttribute("u_id");
 
         String unbanId = request.getParameter("unban");

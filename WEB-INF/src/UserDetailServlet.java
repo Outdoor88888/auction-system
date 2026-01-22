@@ -16,7 +16,12 @@ public class UserDetailServlet extends HttpServlet {
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        HttpSession session = request.getSession();
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("u_id") == null) {
+            response.sendRedirect("login");
+            return;
+        }
+        AuctionHelper.setNoCache(response);
         int myUid = (Integer) session.getAttribute("u_id");
         int targetUid = Integer.parseInt(request.getParameter("uid"));
 
@@ -125,7 +130,11 @@ public class UserDetailServlet extends HttpServlet {
     }
 
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        HttpSession session = request.getSession();
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("u_id") == null) {
+            response.sendRedirect("login");
+            return;
+        }
         int myUid = (Integer) session.getAttribute("u_id");
         String action = request.getParameter("action");
         try {
@@ -152,6 +161,7 @@ public class UserDetailServlet extends HttpServlet {
 
                     } else if ("delete_item".equals(action)) {
                         int itemId = Integer.parseInt(request.getParameter("item_id"));
+                        // 所有権チェック
                         PreparedStatement psCheck = conn.prepareStatement("SELECT * FROM Item WHERE id=? AND seller_id=? AND begin_at > NOW()");
                         psCheck.setInt(1, itemId); psCheck.setInt(2, myUid);
                         if (psCheck.executeQuery().next()) {

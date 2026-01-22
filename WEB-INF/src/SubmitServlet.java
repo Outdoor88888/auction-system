@@ -19,9 +19,19 @@ public class SubmitServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         response.setContentType("text/html;charset=UTF-8");
         PrintWriter out = response.getWriter();
-        HttpSession session = request.getSession(false);
+
         String mode = request.getParameter("mode");
-        boolean isEdit = "edit".equals(mode) && session != null && session.getAttribute("u_id") != null;
+        boolean isEdit = "edit".equals(mode);
+        HttpSession session = request.getSession(false);
+
+        // 編集モードならログインチェック
+        if (isEdit) {
+            if (session == null || session.getAttribute("u_id") == null) {
+                response.sendRedirect("login");
+                return;
+            }
+            AuctionHelper.setNoCache(response);
+        }
 
         String error = (String) request.getAttribute("error");
         String problemField = (String) request.getAttribute("problemField");
@@ -96,8 +106,14 @@ public class SubmitServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
         String mode = request.getParameter("mode");
-        HttpSession session = request.getSession(false);
         boolean isEdit = "edit".equals(mode);
+        HttpSession session = request.getSession(false);
+
+        // 編集モードならログインチェック
+        if (isEdit && (session == null || session.getAttribute("u_id") == null)) {
+            response.sendRedirect("login");
+            return;
+        }
 
         String name = request.getParameter("name");
         String password = request.getParameter("password");
