@@ -24,6 +24,7 @@ public class BanListServlet extends HttpServlet {
             try {
                 Class.forName("org.postgresql.Driver");
                 try (Connection conn = DriverManager.getConnection("jdbc:postgresql://" + _hostname + ":5432/" + _dbname, _username, _password)) {
+                    // Ban解除 (DELETE)
                     PreparedStatement ps = conn.prepareStatement("DELETE FROM Ban WHERE from_user_id=? AND to_user_id=?");
                     ps.setInt(1, myUid); ps.setInt(2, Integer.parseInt(unbanId));
                     ps.executeUpdate();
@@ -40,7 +41,7 @@ public class BanListServlet extends HttpServlet {
             Class.forName("org.postgresql.Driver");
             try (Connection conn = DriverManager.getConnection("jdbc:postgresql://" + _hostname + ":5432/" + _dbname, _username, _password)) {
                 AuctionHelper.processNotifications(out, session, conn);
-                AuctionHelper.printHeader(out, session, "banList"); // 修正: 小文字開始
+                AuctionHelper.printHeader(out, session, "banList");
 
                 out.println("<h2>Banリスト</h2><table border='1'>");
                 PreparedStatement ps = conn.prepareStatement("SELECT b.to_user_id, u.name FROM Ban b JOIN Users u ON b.to_user_id = u.id WHERE b.from_user_id = ?");

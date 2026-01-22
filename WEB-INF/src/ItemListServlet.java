@@ -47,18 +47,18 @@ public class ItemListServlet extends HttpServlet {
                 out.println("<option value='active' "+("active".equals(filter)?"selected":"")+">開催中</option>");
                 out.println("<option value='pre' "+("pre".equals(filter)?"selected":"")+">開催前</option>");
                 out.println("<option value='post' "+("post".equals(filter)?"selected":"")+">終了済</option>");
-                // friendオプション削除
                 out.println("</select>");
                 out.println("<button type='submit'>表示</button>");
                 out.println("</form>");
 
+                // 複雑なSQL構築 (副問合せ、集約、結合)
                 StringBuilder sql = new StringBuilder();
                 sql.append("SELECT i.*, u.name as seller_name, ");
-                sql.append("(SELECT MAX(bid_price) FROM BidItem WHERE item_id = i.id) as max_bid, ");
-                sql.append("(SELECT COUNT(*) FROM Likes WHERE user_id = ? AND item_id = i.id) as is_liked, ");
-                sql.append("(SELECT COUNT(*) FROM BidItem WHERE bidder_id = ? AND item_id = i.id) as is_bidded, ");
-                sql.append("(SELECT bidder_id FROM BidItem WHERE item_id = i.id ORDER BY bid_price DESC LIMIT 1) as top_bidder ");
-                sql.append("FROM Item i JOIN Users u ON i.seller_id = u.id WHERE 1=1 ");
+                sql.append("(SELECT MAX(bid_price) FROM BidItem WHERE item_id = i.id) as max_bid, "); // 最高額
+                sql.append("(SELECT COUNT(*) FROM Likes WHERE user_id = ? AND item_id = i.id) as is_liked, "); // いいね判定
+                sql.append("(SELECT COUNT(*) FROM BidItem WHERE bidder_id = ? AND item_id = i.id) as is_bidded, "); // 入札判定
+                sql.append("(SELECT bidder_id FROM BidItem WHERE item_id = i.id ORDER BY bid_price DESC LIMIT 1) as top_bidder "); // 勝者
+                sql.append("FROM Item i JOIN Users u ON i.seller_id = u.id WHERE 1=1 "); // 出品者名結合
 
                 sql.append("AND i.seller_id <> ? ");
                 sql.append("AND i.seller_id NOT IN (SELECT to_user_id FROM Ban WHERE from_user_id = ?) ");
@@ -71,7 +71,6 @@ public class ItemListServlet extends HttpServlet {
                 else if ("active".equals(filter)) sql.append("AND i.begin_at <= NOW() AND i.end_at > NOW() ");
                 else if ("pre".equals(filter)) sql.append("AND i.begin_at > NOW() ");
                 else if ("post".equals(filter)) sql.append("AND i.end_at <= NOW() ");
-                // friend条件削除
 
                 sql.append("ORDER BY CASE WHEN i.begin_at > NOW() THEN 0 ELSE 1 END DESC, ");
                 sql.append("COALESCE((SELECT MAX(bid_price) FROM BidItem WHERE item_id = i.id), i.opening_price) DESC ");
@@ -144,6 +143,7 @@ public class ItemListServlet extends HttpServlet {
         try {
             Class.forName("org.postgresql.Driver");
             try (Connection conn = DriverManager.getConnection("jdbc:postgresql://" + _hostname + ":5432/" + _dbname, _username, _password)) {
+                // Likeの切り替え処理 (INSERT/DELETE)
                 PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM Likes WHERE user_id=? AND item_id=?");
                 ps.setInt(1, uid); ps.setInt(2, Integer.parseInt(itemId));
                 if (ps.executeQuery().next()) {

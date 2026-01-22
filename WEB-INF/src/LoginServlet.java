@@ -17,6 +17,7 @@ public class LoginServlet extends HttpServlet {
     }
 
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        // ログアウト処理
         String action = request.getParameter("action");
         if ("logout".equals(action)) {
             HttpSession session = request.getSession(false);
@@ -31,12 +32,11 @@ public class LoginServlet extends HttpServlet {
 
         out.println("<html><head><style>body{font-family:sans-serif; text-align:center; padding-top:50px;}</style></head><body>");
         out.println("<h2>Webオークション ログイン</h2>");
-        out.println("<form action='login' method='POST' onkeydown='if(event.key===\"Enter\"){event.preventDefault();}'>"); // Enter無効化
+        out.println("<form action='login' method='POST' onkeydown='if(event.key===\"Enter\"){event.preventDefault();}'>");
         if (error != null) out.println("<p style='color:red;'>" + error + "</p>");
-
         out.println("<div style='margin-bottom:10px;'>メールアドレス:<br><input type='text' name='email'></div>");
         out.println("<div style='margin-bottom:20px;'>パスワード:<br><input type='password' name='password'></div>");
-        out.println("<button type='submit' onclick='this.form.submit()'>ログイン</button>"); // 明示的なSubmit
+        out.println("<button type='submit' onclick='this.form.submit()'>ログイン</button>");
         out.println("</form>");
         out.println("<p><a href='submit'>新規ユーザ登録はこちら</a></p>");
         out.println("</body></html>");
@@ -50,6 +50,7 @@ public class LoginServlet extends HttpServlet {
         try {
             Class.forName("org.postgresql.Driver");
             try (Connection conn = DriverManager.getConnection("jdbc:postgresql://" + _hostname + ":5432/" + _dbname, _username, _password)) {
+                // ユーザー認証 (SELECT)
                 PreparedStatement ps = conn.prepareStatement("SELECT * FROM Users WHERE email = ? AND password = ?");
                 ps.setString(1, email);
                 ps.setString(2, pass);
@@ -59,7 +60,6 @@ public class LoginServlet extends HttpServlet {
                     HttpSession session = request.getSession();
                     session.setAttribute("u_id", rs.getInt("id"));
                     session.setAttribute("name", rs.getString("name"));
-                    // 通知用初期化
                     session.setAttribute("last_check_time", System.currentTimeMillis());
                     response.sendRedirect("itemList");
                 } else {

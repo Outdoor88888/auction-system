@@ -98,7 +98,6 @@ public class ItemDetailServlet extends HttpServlet {
                     out.println("<tr><th>落札者</th><td>" + winnerDisplay + "</td></tr>");
 
                     if (isOwner) {
-                        // ステータス行削除
                         out.println("<tr><th>入札数</th><td>" + bidCount + "件</td></tr>");
                         out.println("<tr><th>いいね総数</th><td>" + totalLikes + "件</td></tr>");
                     } else {
@@ -142,7 +141,7 @@ public class ItemDetailServlet extends HttpServlet {
         } catch (Exception e) { e.printStackTrace(out); }
         AuctionHelper.printFooter(out);
     }
-    // doPost 省略
+
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         HttpSession session = request.getSession();
         int myUid = (Integer) session.getAttribute("u_id");
@@ -170,6 +169,7 @@ public class ItemDetailServlet extends HttpServlet {
                 if (bidPrice <= minPrice) {
                     request.setAttribute("error", "現在の価格より高い金額を指定してください"); doGet(request, response); return;
                 }
+                // 入札登録 (INSERT)
                 PreparedStatement ps = conn.prepareStatement("INSERT INTO BidItem (bidder_id, item_id, bid_price, is_success) VALUES (?, ?, ?, false)");
                 ps.setInt(1, myUid); ps.setInt(2, itemId); ps.setInt(3, bidPrice);
                 ps.executeUpdate();
@@ -177,5 +177,18 @@ public class ItemDetailServlet extends HttpServlet {
             }
         } catch (Exception e) { e.printStackTrace(); }
     }
-    private void handleLike(String itemId, int uid) { /* 省略 */ }
+    private void handleLike(String itemId, int uid) {
+        try {
+            Class.forName("org.postgresql.Driver");
+            try (Connection conn = DriverManager.getConnection("jdbc:postgresql://" + _hostname + ":5432/" + _dbname, _username, _password)) {
+                PreparedStatement ps = conn.prepareStatement("SELECT 1 FROM Likes WHERE user_id=? AND item_id=?");
+                ps.setInt(1, uid); ps.setInt(2, Integer.parseInt(itemId));
+                if (ps.executeQuery().next()) {
+                    conn.prepareStatement("DELETE FROM Likes WHERE user_id="+uid+" AND item_id="+itemId).executeUpdate();
+                } else {
+                    conn.prepareStatement("INSERT INTO Likes (user_id, item_id) VALUES ("+uid+", "+itemId+")").executeUpdate();
+                }
+            }
+        } catch(Exception e){}
+    }
 }

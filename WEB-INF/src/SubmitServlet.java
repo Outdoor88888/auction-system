@@ -26,26 +26,22 @@ public class SubmitServlet extends HttpServlet {
         String error = (String) request.getAttribute("error");
         String problemField = (String) request.getAttribute("problemField");
 
-        // フォーム用変数
         String name = "", pass = "", real_name = "", email = "", address = "";
         String b_year = "", b_month = "", b_day = "";
 
-        // DBからロード (編集モード、かつエラーによる再表示でない場合)
+        // 編集モードなら既存データを取得 (SELECT)
         boolean dataLoaded = false;
         if (isEdit && error == null) {
             try {
                 Class.forName("org.postgresql.Driver");
                 try (Connection conn = DriverManager.getConnection("jdbc:postgresql://" + _hostname + ":5432/" + _dbname, _username, _password)) {
                     if (session != null) AuctionHelper.processNotifications(out, session, conn);
-
                     PreparedStatement ps = conn.prepareStatement("SELECT * FROM Users WHERE id = ?");
                     ps.setInt(1, (Integer)session.getAttribute("u_id"));
                     ResultSet rs = ps.executeQuery();
                     if(rs.next()){
-                        name = rs.getString("name");
-                        pass = rs.getString("password");
-                        real_name = rs.getString("real_name");
-                        email = rs.getString("email");
+                        name = rs.getString("name"); pass = rs.getString("password");
+                        real_name = rs.getString("real_name"); email = rs.getString("email");
                         address = rs.getString("address");
                         Date bd = rs.getDate("birth_date");
                         if(bd != null) {
@@ -60,16 +56,13 @@ public class SubmitServlet extends HttpServlet {
             } catch (Exception e) { e.printStackTrace(); }
         }
 
-        // DBロードしていないなら、リクエストパラメータから復元（エラー再表示用）
         if (!dataLoaded) {
             name = request.getParameter("name"); if(name==null) name="";
             pass = request.getParameter("password"); if(pass==null) pass="";
             real_name = request.getParameter("real_name"); if(real_name==null) real_name="";
             email = request.getParameter("email"); if(email==null) email="";
             address = request.getParameter("address"); if(address==null) address="";
-            b_year = request.getParameter("year");
-            b_month = request.getParameter("month");
-            b_day = request.getParameter("day");
+            b_year = request.getParameter("year"); b_month = request.getParameter("month"); b_day = request.getParameter("day");
         }
 
         if (isEdit) AuctionHelper.printHeader(out, session, "submit");
@@ -80,27 +73,22 @@ public class SubmitServlet extends HttpServlet {
 
         out.println("<form action='submit' method='POST' onkeydown='stopEnter(event)'>");
         if (isEdit) out.println("<input type='hidden' name='mode' value='edit'>");
-
         out.println("ユーザー名: <input type='text' name='name' value='" + name + "' style='" + ("name".equals(problemField)?"background:pink":"") + "'><br>");
         out.println("パスワード: <input type='password' name='password' value='" + pass + "' style='" + ("password".equals(problemField)?"background:pink":"") + "'><br>");
         out.println("本名: <input type='text' name='real_name' value='" + real_name + "' style='" + ("real_name".equals(problemField)?"background:pink":"") + "'><br>");
 
         out.println("生年月日: <select name='year'>");
         for(int y=1950; y<=2025; y++) out.println("<option value='"+y+"' "+(String.valueOf(y).equals(b_year)?"selected":"")+">"+y+"</option>");
-        out.println("</select>年");
-        out.println("<select name='month'>");
+        out.println("</select>年 <select name='month'>");
         for(int m=1; m<=12; m++) out.println("<option value='"+m+"' "+(String.valueOf(m).equals(b_month)?"selected":"")+">"+m+"</option>");
-        out.println("</select>月");
-        out.println("<select name='day'>");
+        out.println("</select>月 <select name='day'>");
         for(int d=1; d<=31; d++) out.println("<option value='"+d+"' "+(String.valueOf(d).equals(b_day)?"selected":"")+">"+d+"</option>");
         out.println("</select>日<br>");
 
         out.println("メールアドレス: <input type='text' name='email' value='" + email + "' style='" + ("email".equals(problemField)?"background:pink":"") + "'><br>");
         out.println("住所: <input type='text' name='address' value='" + address + "' style='" + ("address".equals(problemField)?"background:pink":"") + "'><br>");
-
         out.println("<br><button type='button' onclick='this.form.submit()'>" + (isEdit ? "変更" : "登録") + "</button>");
         out.println("</form>");
-
         if (!isEdit) out.println("<a href='login'>ログイン画面へ戻る</a>");
         AuctionHelper.printFooter(out);
     }
@@ -130,6 +118,7 @@ public class SubmitServlet extends HttpServlet {
             try {
                 Class.forName("org.postgresql.Driver");
                 try (Connection conn = DriverManager.getConnection("jdbc:postgresql://" + _hostname + ":5432/" + _dbname, _username, _password)) {
+                    // 重複チェック
                     String checkSql = "SELECT id FROM Users WHERE email = ?";
                     if (isEdit) checkSql += " AND id <> " + session.getAttribute("u_id");
                     PreparedStatement psCheck = conn.prepareStatement(checkSql);
@@ -139,6 +128,7 @@ public class SubmitServlet extends HttpServlet {
                         return;
                     }
                     if (isEdit) {
+                        // 更新 (UPDATE)
                         PreparedStatement ps = conn.prepareStatement("UPDATE Users SET name=?, password=?, real_name=?, birth_date=?, email=?, address=? WHERE id=?");
                         ps.setString(1, name); ps.setString(2, password); ps.setString(3, real_name);
                         ps.setDate(4, Date.valueOf(birth_date)); ps.setString(5, email); ps.setString(6, address);
@@ -147,6 +137,7 @@ public class SubmitServlet extends HttpServlet {
                         response.setContentType("text/html;charset=UTF-8");
                         response.getWriter().println("<script>alert('変更が完了しました'); location.href='userDetail?uid="+session.getAttribute("u_id")+"';</script>");
                     } else {
+                        // 新規登録 (INSERT)
                         PreparedStatement ps = conn.prepareStatement("INSERT INTO Users (name, password, real_name, birth_date, email, address) VALUES (?, ?, ?, ?, ?, ?)");
                         ps.setString(1, name); ps.setString(2, password); ps.setString(3, real_name);
                         ps.setDate(4, Date.valueOf(birth_date)); ps.setString(5, email); ps.setString(6, address);
